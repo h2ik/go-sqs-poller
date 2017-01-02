@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
+// NewSQSClient returns a SQS Client and a Queue URL for you you to connect to
 func NewSQSClient(queueName string) (*sqs.SQS, string) {
 	sess, err := session.NewSession()
 	if err != nil {
