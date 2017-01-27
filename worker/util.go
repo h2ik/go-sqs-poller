@@ -9,13 +9,13 @@ import (
 )
 
 // NewSQSClient returns a SQS Client and a Queue URL for you you to connect to
-func NewSQSClient(queueName string) (*sqs.SQS, string) {
+func NewSQSClient(queueName string, cfgs ...*aws.Config) (*sqs.SQS, string) {
 	sess, err := session.NewSession()
 	if err != nil {
 		fmt.Println("failed to create session,", err)
 		return nil, ""
 	}
-	svc := sqs.New(sess)
+	svc := sqs.New(sess, cfgs...)
 	// try and find the queue url
 
 	params := &sqs.GetQueueUrlInput{
