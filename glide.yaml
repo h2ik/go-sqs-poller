@@ -1,0 +1,9 @@
+package: github.com/jwhitcraft/sqs-queue
+import:
+- package: github.com/aws/aws-sdk-go
+  version: ^1.6.18
+  subpackages:
+  - aws
+  - aws/credentials
+  - aws/session
+  - service/sqs
