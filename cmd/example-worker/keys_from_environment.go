@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/sqs"
 
-	"github.com/jwhitcraft/sqs-queue/worker"
+	"github.com/h2ik/go-sqs-poller/worker"
 )
 
 func main() {

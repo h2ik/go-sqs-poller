@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/aws"
-
-	"github.com/jwhitcraft/sqs-queue/worker"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/service/sqs"
+
+	"github.com/h2ik/go-sqs-poller/worker"
 )
 
 var (
