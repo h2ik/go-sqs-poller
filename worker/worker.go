@@ -25,12 +25,12 @@ type InvalidEventError struct {
 	event string
 	msg string
 }
-func (e *InvalidEventError) Error() string {
+func (e InvalidEventError) Error() string {
 	return fmt.Sprintf("[Invalid Event: %s] %s", e.event, e.msg)
 }
 
-func NewInvalidEventError(event, msg string) *InvalidEventError {
-	return &InvalidEventError{event: event, msg: msg}
+func NewInvalidEventError(event, msg string) InvalidEventError {
+	return InvalidEventError{event: event, msg: msg}
 }
 
 // Exported Variables
