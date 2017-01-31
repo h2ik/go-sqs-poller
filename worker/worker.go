@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"fmt"
 )
 
 // HandlerFunc is used to define the Handler that is run on for each message
@@ -18,6 +19,14 @@ func (f HandlerFunc) HandleMessage(msg *sqs.Message) error {
 // Handler interface
 type Handler interface {
 	HandleMessage(msg *sqs.Message) error
+}
+
+type InvalidEventError struct {
+	event string
+	msg string
+}
+func (e *InvalidEventError) Error() string {
+	return fmt.Sprintf("[Invalid Event: %s] %s", e.event, e.msg)
 }
 
 // Exported Variables
@@ -82,7 +91,9 @@ func run(svc *sqs.SQS, h Handler, messages []*sqs.Message) {
 func handleMessage(svc *sqs.SQS, m *sqs.Message, h Handler) error {
 	var err error
 	err = h.HandleMessage(m)
-	if err != nil {
+	if _, ok := err.(InvalidEventError); ok {
+		log.Println(err.Error())
+	} else {
 		return err
 	}
 
