@@ -97,7 +97,7 @@ func handleMessage(svc *sqs.SQS, m *sqs.Message, h Handler) error {
 	err = h.HandleMessage(m)
 	if _, ok := err.(InvalidEventError); ok {
 		log.Println(err.Error())
-	} else {
+	} else if err != nil {
 		return err
 	}
 
