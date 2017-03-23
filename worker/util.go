@@ -19,7 +19,7 @@ func NewSQSClient(queueName string, cfgs ...*aws.Config) (*sqs.SQS, string) {
 	// try and find the queue url
 
 	params := &sqs.GetQueueUrlInput{
-		QueueName:              aws.String(queueName), // Required
+		QueueName: aws.String(queueName), // Required
 	}
 	resp, err := svc.GetQueueUrl(params)
 
