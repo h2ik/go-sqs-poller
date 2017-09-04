@@ -50,9 +50,11 @@ var (
 	Log LoggerIFace = &logger{}
 )
 
-// Start starts the polling and will continue polling till the application is forcibly stopped
+// Start starts the polling and will continue polling util Stop is called.
+var polling bool
 func Start(svc *sqs.SQS, h Handler) {
-	for {
+	polling = true
+	for polling {
 		Log.Debug("worker: Start Polling")
 		params := &sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String(QueueURL), // Required
@@ -72,6 +74,11 @@ func Start(svc *sqs.SQS, h Handler) {
 			run(svc, h, resp.Messages)
 		}
 	}
+}
+
+// Stops polling to receive new messages, to enable clean shutdown.
+func Stop() {
+	polling = false
 }
 
 // poll launches goroutine per received message and wait for all message to be processed
