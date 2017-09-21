@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -51,25 +52,31 @@ var (
 )
 
 // Start starts the polling and will continue polling till the application is forcibly stopped
-func Start(svc *sqs.SQS, h Handler) {
+func Start(ctx context.Context, svc *sqs.SQS, h Handler) {
 	for {
-		Log.Debug("worker: Start Polling")
-		params := &sqs.ReceiveMessageInput{
-			QueueUrl:            aws.String(QueueURL), // Required
-			MaxNumberOfMessages: aws.Int64(MaxNumberOfMessage),
-			MessageAttributeNames: []*string{
-				aws.String("All"), // Required
-			},
-			WaitTimeSeconds: aws.Int64(WaitTimeSecond),
-		}
+		select {
+		case <-ctx.Done():
+			log.Println("worker: Stopping polling because a context kill signal was sent")
+			return
+		default:
+			Log.Debug("worker: Start Polling")
+			params := &sqs.ReceiveMessageInput{
+				QueueUrl:            aws.String(QueueURL), // Required
+				MaxNumberOfMessages: aws.Int64(MaxNumberOfMessage),
+				MessageAttributeNames: []*string{
+					aws.String("All"), // Required
+				},
+				WaitTimeSeconds: aws.Int64(WaitTimeSecond),
+			}
 
-		resp, err := svc.ReceiveMessage(params)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		if len(resp.Messages) > 0 {
-			run(svc, h, resp.Messages)
+			resp, err := svc.ReceiveMessage(params)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if len(resp.Messages) > 0 {
+				run(svc, h, resp.Messages)
+			}
 		}
 	}
 }
