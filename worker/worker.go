@@ -57,7 +57,7 @@ func Start(svc *sqs.SQS, h Handler) {
 		params := &sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String(QueueURL), // Required
 			MaxNumberOfMessages: aws.Int64(MaxNumberOfMessage),
-			MessageAttributeNames: []*string{
+			AttributeNames: []*string{
 				aws.String("All"), // Required
 			},
 			WaitTimeSeconds: aws.Int64(WaitTimeSecond),
