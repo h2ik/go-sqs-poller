@@ -52,7 +52,7 @@ var (
 )
 
 // Start starts the polling and will continue polling till the application is forcibly stopped
-func Start(ctx context.Context, svc *sqs.SQS, h Handler) {
+func Start(ctx context.Context, maxNumberOfMessages int64, svc *sqs.SQS, h Handler) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -62,13 +62,13 @@ func Start(ctx context.Context, svc *sqs.SQS, h Handler) {
 			Log.Debug("worker: Start Polling")
 			params := &sqs.ReceiveMessageInput{
 				QueueUrl:            aws.String(QueueURL), // Required
-				MaxNumberOfMessages: aws.Int64(MaxNumberOfMessage),
+				MaxNumberOfMessages: aws.Int64(maxNumberOfMessages),
 				AttributeNames: []*string{
 					aws.String("All"), // Required
 				},
 				WaitTimeSeconds: aws.Int64(WaitTimeSecond),
 			}
-      
+
 			resp, err := svc.ReceiveMessage(params)
 			if err != nil {
 				log.Println(err)
