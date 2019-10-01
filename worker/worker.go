@@ -13,6 +13,7 @@ import (
 // HandlerFunc is used to define the Handler that is run on for each message
 type HandlerFunc func(msg *sqs.Message) error
 
+// HandleMessage wraps a function for handling sqs messages
 func (f HandlerFunc) HandleMessage(msg *sqs.Message) error {
 	return f(msg)
 }
@@ -22,6 +23,7 @@ type Handler interface {
 	HandleMessage(msg *sqs.Message) error
 }
 
+// InvalidEventError struct
 type InvalidEventError struct {
 	event string
 	msg   string
@@ -31,6 +33,7 @@ func (e InvalidEventError) Error() string {
 	return fmt.Sprintf("[Invalid Event: %s] %s", e.event, e.msg)
 }
 
+// NewInvalidEventError creates InvalidEventError struct
 func NewInvalidEventError(event, msg string) InvalidEventError {
 	return InvalidEventError{event: event, msg: msg}
 }
@@ -38,7 +41,7 @@ func NewInvalidEventError(event, msg string) InvalidEventError {
 // Exported Variables
 var (
 	// what is the queue url we are connecting to, Defaults to empty
-	QueueURL string = ""
+	QueueURL string
 	// The maximum number of messages to return. Amazon SQS never returns more messages
 	// than this value (however, fewer messages might be returned). Valid values
 	// are 1 to 10. Default is 10.
@@ -68,7 +71,7 @@ func Start(ctx context.Context, svc *sqs.SQS, h Handler) {
 				},
 				WaitTimeSeconds: aws.Int64(WaitTimeSecond),
 			}
-      
+
 			resp, err := svc.ReceiveMessage(params)
 			if err != nil {
 				log.Println(err)

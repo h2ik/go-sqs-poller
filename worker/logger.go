@@ -5,6 +5,7 @@ import (
 	"log"
 )
 
+// LoggerIFace interface
 type LoggerIFace interface {
 	Debug(i ...interface{})
 	Info(i ...interface{})
