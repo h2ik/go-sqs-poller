@@ -6,10 +6,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
 
 // NewSQSClient returns a SQS Client and a Queue URL for you you to connect to
-func NewSQSClient(queueName string, cfgs ...*aws.Config) (*sqs.SQS, string) {
+func NewSQSClient(queueName string, cfgs ...*aws.Config) (sqsiface.SQSAPI, string) {
 	sess, err := session.NewSession()
 	if err != nil {
 		fmt.Println("failed to create session,", err)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
 
 // HandlerFunc is used to define the Handler that is run on for each message
@@ -55,7 +56,7 @@ var (
 )
 
 // Start starts the polling and will continue polling till the application is forcibly stopped
-func Start(ctx context.Context, svc *sqs.SQS, h Handler) {
+func Start(ctx context.Context, svc sqsiface.SQSAPI, h Handler) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -85,7 +86,7 @@ func Start(ctx context.Context, svc *sqs.SQS, h Handler) {
 }
 
 // poll launches goroutine per received message and wait for all message to be processed
-func run(svc *sqs.SQS, h Handler, messages []*sqs.Message) {
+func run(svc sqsiface.SQSAPI, h Handler, messages []*sqs.Message) {
 	numMessages := len(messages)
 	Log.Info(fmt.Sprintf("worker: Received %d messages", numMessages))
 
@@ -104,7 +105,7 @@ func run(svc *sqs.SQS, h Handler, messages []*sqs.Message) {
 	wg.Wait()
 }
 
-func handleMessage(svc *sqs.SQS, m *sqs.Message, h Handler) error {
+func handleMessage(svc sqsiface.SQSAPI, m *sqs.Message, h Handler) error {
 	var err error
 	err = h.HandleMessage(m)
 	if _, ok := err.(InvalidEventError); ok {
