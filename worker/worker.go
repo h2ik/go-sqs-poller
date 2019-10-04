@@ -39,56 +39,68 @@ func NewInvalidEventError(event, msg string) InvalidEventError {
 	return InvalidEventError{event: event, msg: msg}
 }
 
-// Exported Variables
-var (
-	// what is the queue url we are connecting to, Defaults to empty
-	QueueURL string
-	// The maximum number of messages to return. Amazon SQS never returns more messages
-	// than this value (however, fewer messages might be returned). Valid values
-	// are 1 to 10. Default is 10.
-	MaxNumberOfMessage int64 = 10
-	// The duration (in seconds) for which the call waits for a message to arrive
-	// in the queue before returning. If a message is available, the call returns
-	// sooner than WaitTimeSeconds.
-	WaitTimeSecond int64 = 20
+// Worker struct
+type Worker struct {
+	Config    *Config
+	Log       LoggerIFace
+	SqsClient sqsiface.SQSAPI
+}
 
-	Log LoggerIFace = &logger{}
-)
+// Config struct
+type Config struct {
+	MaxNumberOfMessage int64
+	QueueName          string
+	QueueURL           string
+	WaitTimeSecond     int64
+}
+
+// New sets up a new Worker
+func New(client sqsiface.SQSAPI, config *Config) *Worker {
+	config.populateDefaultValues()
+	config.QueueURL = getQueueURL(client, config.QueueName)
+
+	return &Worker{
+		Config:    config,
+		Log:       &logger{},
+		SqsClient: client,
+	}
+}
 
 // Start starts the polling and will continue polling till the application is forcibly stopped
-func Start(ctx context.Context, svc sqsiface.SQSAPI, h Handler) {
+func (worker *Worker) Start(ctx context.Context, h Handler) {
 	for {
 		select {
 		case <-ctx.Done():
 			log.Println("worker: Stopping polling because a context kill signal was sent")
 			return
 		default:
-			Log.Debug("worker: Start Polling")
+			worker.Log.Debug("worker: Start Polling")
+
 			params := &sqs.ReceiveMessageInput{
-				QueueUrl:            aws.String(QueueURL), // Required
-				MaxNumberOfMessages: aws.Int64(MaxNumberOfMessage),
+				QueueUrl:            aws.String(worker.Config.QueueName), // Required
+				MaxNumberOfMessages: aws.Int64(worker.Config.MaxNumberOfMessage),
 				AttributeNames: []*string{
 					aws.String("All"), // Required
 				},
-				WaitTimeSeconds: aws.Int64(WaitTimeSecond),
+				WaitTimeSeconds: aws.Int64(worker.Config.MaxNumberOfMessage),
 			}
 
-			resp, err := svc.ReceiveMessage(params)
+			resp, err := worker.SqsClient.ReceiveMessage(params)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
 			if len(resp.Messages) > 0 {
-				run(svc, h, resp.Messages)
+				worker.run(h, resp.Messages)
 			}
 		}
 	}
 }
 
 // poll launches goroutine per received message and wait for all message to be processed
-func run(svc sqsiface.SQSAPI, h Handler, messages []*sqs.Message) {
+func (worker *Worker) run(h Handler, messages []*sqs.Message) {
 	numMessages := len(messages)
-	Log.Info(fmt.Sprintf("worker: Received %d messages", numMessages))
+	worker.Log.Info(fmt.Sprintf("worker: Received %d messages", numMessages))
 
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -96,8 +108,8 @@ func run(svc sqsiface.SQSAPI, h Handler, messages []*sqs.Message) {
 		go func(m *sqs.Message) {
 			// launch goroutine
 			defer wg.Done()
-			if err := handleMessage(svc, m, h); err != nil {
-				Log.Error(err.Error())
+			if err := worker.handleMessage(m, h); err != nil {
+				worker.Log.Error(err.Error())
 			}
 		}(messages[i])
 	}
@@ -105,24 +117,24 @@ func run(svc sqsiface.SQSAPI, h Handler, messages []*sqs.Message) {
 	wg.Wait()
 }
 
-func handleMessage(svc sqsiface.SQSAPI, m *sqs.Message, h Handler) error {
+func (worker *Worker) handleMessage(m *sqs.Message, h Handler) error {
 	var err error
 	err = h.HandleMessage(m)
 	if _, ok := err.(InvalidEventError); ok {
-		Log.Error(err.Error())
+		worker.Log.Error(err.Error())
 	} else if err != nil {
 		return err
 	}
 
 	params := &sqs.DeleteMessageInput{
-		QueueUrl:      aws.String(QueueURL), // Required
-		ReceiptHandle: m.ReceiptHandle,      // Required
+		QueueUrl:      aws.String(worker.Config.QueueName), // Required
+		ReceiptHandle: m.ReceiptHandle,                     // Required
 	}
-	_, err = svc.DeleteMessage(params)
+	_, err = worker.SqsClient.DeleteMessage(params)
 	if err != nil {
 		return err
 	}
-	Log.Debug(fmt.Sprintf("worker: deleted message from queue: %s", aws.StringValue(m.ReceiptHandle)))
+	worker.Log.Debug(fmt.Sprintf("worker: deleted message from queue: %s", aws.StringValue(m.ReceiptHandle)))
 
 	return nil
 }
