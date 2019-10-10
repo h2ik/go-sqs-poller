@@ -6,29 +6,36 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
 
-// NewSQSClient returns a SQS Client and a Queue URL for you you to connect to
-func NewSQSClient(queueName string, cfgs ...*aws.Config) (*sqs.SQS, string) {
-	sess, err := session.NewSession()
-	if err != nil {
-		fmt.Println("failed to create session,", err)
-		return nil, ""
-	}
-	svc := sqs.New(sess, cfgs...)
-	// try and find the queue url
+// CreateSqsClient creates a client for SQS API
+func CreateSqsClient(awsConfigs ...*aws.Config) sqsiface.SQSAPI {
+	awsSession := session.Must(session.NewSession())
 
+	return sqs.New(awsSession, awsConfigs...)
+}
+
+func (config *Config) populateDefaultValues() {
+	if config.MaxNumberOfMessage == 0 {
+		config.MaxNumberOfMessage = 10
+	}
+
+	if config.WaitTimeSecond == 0 {
+		config.WaitTimeSecond = 20
+	}
+}
+
+func getQueueURL(client sqsiface.SQSAPI, queueName string) (queueURL string) {
 	params := &sqs.GetQueueUrlInput{
 		QueueName: aws.String(queueName), // Required
 	}
-	resp, err := svc.GetQueueUrl(params)
-
+	response, err := client.GetQueueUrl(params)
 	if err != nil {
-		// Print the error, cast err to aws err.Error to get the Code and
-		// Message from an error.
 		fmt.Println(err.Error())
-		return nil, ""
+		return
 	}
+	queueURL = aws.StringValue(response.QueueUrl)
 
-	return svc, aws.StringValue(resp.QueueUrl)
+	return
 }
