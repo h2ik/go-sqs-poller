@@ -1,4 +1,4 @@
-module github.com/h2ik/go-sqs-poller/v2
+module github.com/h2ik/go-sqs-poller/v3
 
 require (
 	github.com/aws/aws-sdk-go v1.6.18
@@ -11,3 +11,5 @@ require (
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.3.0
 )
+
+go 1.13
