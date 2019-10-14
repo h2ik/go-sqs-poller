@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -17,19 +18,23 @@ type mockedSqsClient struct {
 	Config   *aws.Config
 	Response sqs.ReceiveMessageOutput
 	sqsiface.SQSAPI
+	mock.Mock
 }
 
 func (c *mockedSqsClient) GetQueueUrl(urlInput *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
-	url := fmt.Sprintf("https://sqs.%v.amazonaws.com/123456789/%v", c.Config.Region, urlInput.QueueName)
+	url := fmt.Sprintf("https://sqs.%v.amazonaws.com/123456789/%v", *c.Config.Region, *urlInput.QueueName)
 
 	return &sqs.GetQueueUrlOutput{QueueUrl: &url}, nil
 }
 
-func (c *mockedSqsClient) ReceiveMessage(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
+func (c *mockedSqsClient) ReceiveMessage(input *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
+	c.Called(input)
+
 	return &c.Response, nil
 }
 
-func (c *mockedSqsClient) DeleteMessage(*sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error) {
+func (c *mockedSqsClient) DeleteMessage(input *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error) {
+	c.Called(input)
 	c.Response = sqs.ReceiveMessageOutput{}
 
 	return &sqs.DeleteMessageOutput{}, nil
@@ -39,13 +44,13 @@ type mockedHandler struct {
 	mock.Mock
 }
 
+func (mh *mockedHandler) HandleMessage(foo string, qux string) {
+	mh.Called(foo, qux)
+}
+
 type sqsEvent struct {
 	Foo string `json:"foo"`
 	Qux string `json:"qux"`
-}
-
-func (mh *mockedHandler) HandleMessage(foo string, qux string) {
-	mh.Called(foo, qux)
 }
 
 func TestStart(t *testing.T) {
@@ -69,10 +74,19 @@ func TestStart(t *testing.T) {
 		return
 	})
 
-	t.Run("when worker successfully receives a message", func(t *testing.T) {
+	t.Run("the worker has correct configuration", func(t *testing.T) {
+		assert.Equal(t, worker.Config.QueueName, "my-sqs-queue", "QueueName has been set properly")
+		assert.Equal(t, worker.Config.QueueURL, "https://sqs.eu-west-1.amazonaws.com/123456789/my-sqs-queue", "QueueURL has been set properly")
+		assert.Equal(t, worker.Config.MaxNumberOfMessage, int64(10), "MaxNumberOfMessage has been set properly")
+		assert.Equal(t, worker.Config.WaitTimeSecond, int64(20), "WaitTimeSecond has been set properly")
+	})
+
+	t.Run("the worker successfully processes a message", func(t *testing.T) {
+		setupClientSpies(client)
 		handler.On("HandleMessage", "bar", "baz").Return().Once()
 		worker.Start(ctx, handlerFunc)
 
+		client.AssertExpectations(t)
 		handler.AssertExpectations(t)
 	})
 }
@@ -83,11 +97,29 @@ func contextAndCancel() (context.Context, context.CancelFunc) {
 	return context.WithDeadline(context.Background(), delay)
 }
 
-func setupMockedSqsClient(awsConfig *aws.Config) sqsiface.SQSAPI {
+func setupMockedSqsClient(awsConfig *aws.Config) *mockedSqsClient {
 	sqsMessage := &sqs.Message{Body: aws.String(`{ "foo": "bar", "qux": "baz" }`)}
 	sqsResponse := sqs.ReceiveMessageOutput{
 		Messages: []*sqs.Message{sqsMessage},
 	}
 
 	return &mockedSqsClient{Response: sqsResponse, Config: awsConfig}
+}
+
+func setupClientSpies(client *mockedSqsClient) {
+	url := aws.String("https://sqs.eu-west-1.amazonaws.com/123456789/my-sqs-queue")
+	receiveInput := &sqs.ReceiveMessageInput{
+		QueueUrl:            url,
+		MaxNumberOfMessages: aws.Int64(10),
+		AttributeNames: []*string{
+			aws.String("All"),
+		},
+		WaitTimeSeconds: aws.Int64(10),
+	}
+	client.On("ReceiveMessage", receiveInput).Return()
+
+	deleteInput := &sqs.DeleteMessageInput{
+		QueueUrl: url,
+	}
+	client.On("DeleteMessage", deleteInput).Return()
 }
