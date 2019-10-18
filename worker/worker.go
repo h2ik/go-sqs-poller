@@ -77,7 +77,7 @@ func (worker *Worker) Start(ctx context.Context, h Handler) {
 			worker.Log.Debug("worker: Start Polling")
 
 			params := &sqs.ReceiveMessageInput{
-				QueueUrl:            aws.String(worker.Config.QueueName), // Required
+				QueueUrl:            aws.String(worker.Config.QueueURL), // Required
 				MaxNumberOfMessages: aws.Int64(worker.Config.MaxNumberOfMessage),
 				AttributeNames: []*string{
 					aws.String("All"), // Required
@@ -127,8 +127,8 @@ func (worker *Worker) handleMessage(m *sqs.Message, h Handler) error {
 	}
 
 	params := &sqs.DeleteMessageInput{
-		QueueUrl:      aws.String(worker.Config.QueueName), // Required
-		ReceiptHandle: m.ReceiptHandle,                     // Required
+		QueueUrl:      aws.String(worker.Config.QueueURL), // Required
+		ReceiptHandle: m.ReceiptHandle,                    // Required
 	}
 	_, err = worker.SqsClient.DeleteMessage(params)
 	if err != nil {
