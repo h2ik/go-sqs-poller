@@ -82,7 +82,7 @@ func (worker *Worker) Start(ctx context.Context, h Handler) {
 				AttributeNames: []*string{
 					aws.String("All"), // Required
 				},
-				WaitTimeSeconds: aws.Int64(worker.Config.MaxNumberOfMessage),
+				WaitTimeSeconds: aws.Int64(worker.Config.WaitTimeSecond),
 			}
 
 			resp, err := worker.SqsClient.ReceiveMessage(params)

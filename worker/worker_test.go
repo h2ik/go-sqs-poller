@@ -114,7 +114,7 @@ func setupClientSpies(client *mockedSqsClient) {
 		AttributeNames: []*string{
 			aws.String("All"),
 		},
-		WaitTimeSeconds: aws.Int64(10),
+		WaitTimeSeconds: aws.Int64(20),
 	}
 	client.On("ReceiveMessage", receiveInput).Return()
 
