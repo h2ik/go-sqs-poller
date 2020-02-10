@@ -53,11 +53,24 @@ type sqsEvent struct {
 	Qux string `json:"qux"`
 }
 
+const maxNumberOfMessages = 1984
+const waitTimeSecond = 1337
+
 func TestStart(t *testing.T) {
 	region := "eu-west-1"
 	awsConfig := &aws.Config{Region: &region}
-	workerConfig := &Config{QueueName: "my-sqs-queue"}
-	client := setupMockedSqsClient(awsConfig)
+	workerConfig := &Config{
+		MaxNumberOfMessage: maxNumberOfMessages,
+		QueueName:          "my-sqs-queue",
+		WaitTimeSecond:     waitTimeSecond,
+	}
+
+	clientParams := buildClientParams()
+	sqsMessage := &sqs.Message{Body: aws.String(`{ "foo": "bar", "qux": "baz" }`)}
+	sqsResponse := sqs.ReceiveMessageOutput{Messages: []*sqs.Message{sqsMessage}}
+	client := &mockedSqsClient{Response: sqsResponse, Config: awsConfig}
+	deleteInput := &sqs.DeleteMessageInput{QueueUrl: clientParams.QueueUrl}
+
 	worker := New(client, workerConfig)
 
 	ctx, cancel := contextAndCancel()
@@ -77,13 +90,27 @@ func TestStart(t *testing.T) {
 	t.Run("the worker has correct configuration", func(t *testing.T) {
 		assert.Equal(t, worker.Config.QueueName, "my-sqs-queue", "QueueName has been set properly")
 		assert.Equal(t, worker.Config.QueueURL, "https://sqs.eu-west-1.amazonaws.com/123456789/my-sqs-queue", "QueueURL has been set properly")
-		assert.Equal(t, worker.Config.MaxNumberOfMessage, int64(10), "MaxNumberOfMessage has been set properly")
-		assert.Equal(t, worker.Config.WaitTimeSecond, int64(20), "WaitTimeSecond has been set properly")
+		assert.Equal(t, worker.Config.MaxNumberOfMessage, int64(maxNumberOfMessages), "MaxNumberOfMessage has been set properly")
+		assert.Equal(t, worker.Config.WaitTimeSecond, int64(waitTimeSecond), "WaitTimeSecond has been set properly")
+	})
+
+	t.Run("the worker has correct default configuration", func(t *testing.T) {
+		minimumConfig := &Config{
+			QueueName: "my-sqs-queue",
+		}
+		worker := New(client, minimumConfig)
+
+		assert.Equal(t, worker.Config.QueueName, "my-sqs-queue", "QueueName has been set properly")
+		assert.Equal(t, worker.Config.QueueURL, "https://sqs.eu-west-1.amazonaws.com/123456789/my-sqs-queue", "QueueURL has been set properly")
+		assert.Equal(t, worker.Config.MaxNumberOfMessage, int64(10), "MaxNumberOfMessage has been set by default")
+		assert.Equal(t, worker.Config.WaitTimeSecond, int64(20), "WaitTimeSecond has been set by default")
 	})
 
 	t.Run("the worker successfully processes a message", func(t *testing.T) {
-		setupClientSpies(client)
+		client.On("ReceiveMessage", clientParams).Return()
+		client.On("DeleteMessage", deleteInput).Return()
 		handler.On("HandleMessage", "bar", "baz").Return().Once()
+
 		worker.Start(ctx, handlerFunc)
 
 		client.AssertExpectations(t)
@@ -97,29 +124,13 @@ func contextAndCancel() (context.Context, context.CancelFunc) {
 	return context.WithDeadline(context.Background(), delay)
 }
 
-func setupMockedSqsClient(awsConfig *aws.Config) *mockedSqsClient {
-	sqsMessage := &sqs.Message{Body: aws.String(`{ "foo": "bar", "qux": "baz" }`)}
-	sqsResponse := sqs.ReceiveMessageOutput{
-		Messages: []*sqs.Message{sqsMessage},
-	}
-
-	return &mockedSqsClient{Response: sqsResponse, Config: awsConfig}
-}
-
-func setupClientSpies(client *mockedSqsClient) {
+func buildClientParams() *sqs.ReceiveMessageInput {
 	url := aws.String("https://sqs.eu-west-1.amazonaws.com/123456789/my-sqs-queue")
-	receiveInput := &sqs.ReceiveMessageInput{
-		QueueUrl:            url,
-		MaxNumberOfMessages: aws.Int64(10),
-		AttributeNames: []*string{
-			aws.String("All"),
-		},
-		WaitTimeSeconds: aws.Int64(20),
-	}
-	client.On("ReceiveMessage", receiveInput).Return()
 
-	deleteInput := &sqs.DeleteMessageInput{
-		QueueUrl: url,
+	return &sqs.ReceiveMessageInput{
+		QueueUrl:            url,
+		MaxNumberOfMessages: aws.Int64(maxNumberOfMessages),
+		AttributeNames:      []*string{aws.String("All")},
+		WaitTimeSeconds:     aws.Int64(waitTimeSecond),
 	}
-	client.On("DeleteMessage", deleteInput).Return()
 }
