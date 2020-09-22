@@ -19,7 +19,7 @@ func main() {
 	sqsClient := worker.CreateSqsClient(awsConfig)
 	workerConfig := &worker.Config{
 		QueueName:          "my-sqs-queue",
-		MaxNumberOfMessage: 15,
+		MaxNumberOfMessage: 10,
 		WaitTimeSecond:     5,
 	}
 	eventWorker := worker.New(sqsClient, workerConfig)
