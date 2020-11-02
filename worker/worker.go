@@ -8,7 +8,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
 
 // HandlerFunc is used to define the Handler that is run on for each message
@@ -39,11 +38,18 @@ func NewInvalidEventError(event, msg string) InvalidEventError {
 	return InvalidEventError{event: event, msg: msg}
 }
 
+// QueueAPI interface is the minimum interface required from a queue implementation
+type QueueAPI interface {
+	DeleteMessage(*sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
+	GetQueueUrl(*sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error)
+	ReceiveMessage(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
+}
+
 // Worker struct
 type Worker struct {
 	Config    *Config
 	Log       LoggerIFace
-	SqsClient sqsiface.SQSAPI
+	SqsClient QueueAPI
 }
 
 // Config struct
@@ -55,7 +61,7 @@ type Config struct {
 }
 
 // New sets up a new Worker
-func New(client sqsiface.SQSAPI, config *Config) *Worker {
+func New(client QueueAPI, config *Config) *Worker {
 	config.populateDefaultValues()
 	config.QueueURL = getQueueURL(client, config.QueueName)
 

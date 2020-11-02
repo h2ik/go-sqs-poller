@@ -9,7 +9,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -17,7 +16,7 @@ import (
 type mockedSqsClient struct {
 	Config   *aws.Config
 	Response sqs.ReceiveMessageOutput
-	sqsiface.SQSAPI
+	QueueAPI
 	mock.Mock
 }
 
