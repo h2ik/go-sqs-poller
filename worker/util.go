@@ -26,7 +26,7 @@ func (config *Config) populateDefaultValues() {
 	}
 }
 
-func getQueueURL(client sqsiface.SQSAPI, queueName string) (queueURL string) {
+func getQueueURL(client QueueAPI, queueName string) (queueURL string) {
 	params := &sqs.GetQueueUrlInput{
 		QueueName: aws.String(queueName), // Required
 	}
