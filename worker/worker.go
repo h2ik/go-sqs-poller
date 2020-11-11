@@ -38,10 +38,17 @@ func NewInvalidEventError(event, msg string) InvalidEventError {
 	return InvalidEventError{event: event, msg: msg}
 }
 
-// QueueAPI interface is the minimum interface required from a queue implementation
+// QueueAPI interface is the minimum interface required from a queue implementation to invoke New worker.
+// Invoking worker.New() takes in a queue name which is why GetQueueUrl is needed.
 type QueueAPI interface {
-	DeleteMessage(*sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
 	GetQueueUrl(*sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error)
+	QueueDeleteReceiverAPI
+}
+
+// QueueDeleteReceiverAPI interface is the minimum interface required to run a worker.
+// When a worker is in its Receive loop, it requires this interface.
+type QueueDeleteReceiverAPI interface {
+	DeleteMessage(*sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
 	ReceiveMessage(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
 }
 
@@ -49,7 +56,7 @@ type QueueAPI interface {
 type Worker struct {
 	Config    *Config
 	Log       LoggerIFace
-	SqsClient QueueAPI
+	SqsClient QueueDeleteReceiverAPI
 }
 
 // Config struct
