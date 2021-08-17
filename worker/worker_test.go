@@ -127,9 +127,10 @@ func buildClientParams() *sqs.ReceiveMessageInput {
 	url := aws.String("https://sqs.eu-west-1.amazonaws.com/123456789/my-sqs-queue")
 
 	return &sqs.ReceiveMessageInput{
-		QueueUrl:            url,
-		MaxNumberOfMessages: aws.Int64(maxNumberOfMessages),
-		AttributeNames:      []*string{aws.String("All")},
-		WaitTimeSeconds:     aws.Int64(waitTimeSecond),
+		QueueUrl:              url,
+		MaxNumberOfMessages:   aws.Int64(maxNumberOfMessages),
+		AttributeNames:        []*string{aws.String("All")},
+		MessageAttributeNames: []*string{aws.String(sqs.QueueAttributeNameAll)},
+		WaitTimeSeconds:       aws.Int64(waitTimeSecond),
 	}
 }

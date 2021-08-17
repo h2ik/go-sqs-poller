@@ -95,6 +95,9 @@ func (worker *Worker) Start(ctx context.Context, h Handler) {
 				AttributeNames: []*string{
 					aws.String("All"), // Required
 				},
+				MessageAttributeNames: []*string{
+					aws.String(sqs.QueueAttributeNameAll),
+				},
 				WaitTimeSeconds: aws.Int64(worker.Config.WaitTimeSecond),
 			}
 
