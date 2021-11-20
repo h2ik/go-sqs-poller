@@ -81,10 +81,35 @@ func New(client QueueAPI, config *Config) *Worker {
 
 // Start starts the polling and will continue polling till the application is forcibly stopped
 func (worker *Worker) Start(ctx context.Context, h Handler) {
+	messages := make(chan *sqs.Message, worker.Config.MaxNumberOfMessage)
+	var wg sync.WaitGroup
+
+	go worker.startPolling(ctx, messages, &wg)
+
+	for {
+		message, ok := <-messages
+		if !ok {
+			break
+		}
+
+		go func(m *sqs.Message) {
+			// launch goroutine
+			defer wg.Done()
+			if err := worker.handleMessage(m, h); err != nil {
+				worker.Log.Error(err.Error())
+			}
+		}(message)
+	}
+
+	wg.Wait()
+}
+
+func (worker *Worker) startPolling(ctx context.Context, messages chan *sqs.Message, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-ctx.Done():
 			log.Println("worker: Stopping polling because a context kill signal was sent")
+			close(messages)
 			return
 		default:
 			worker.Log.Debug("worker: Start Polling")
@@ -104,30 +129,15 @@ func (worker *Worker) Start(ctx context.Context, h Handler) {
 				continue
 			}
 			if len(resp.Messages) > 0 {
-				worker.run(h, resp.Messages)
+				numMessages := len(resp.Messages)
+				worker.Log.Info(fmt.Sprintf("worker: Received %d messages", numMessages))
+				wg.Add(numMessages)
+				for _, message := range resp.Messages {
+					messages <- message
+				}
 			}
 		}
 	}
-}
-
-// poll launches goroutine per received message and wait for all message to be processed
-func (worker *Worker) run(h Handler, messages []*sqs.Message) {
-	numMessages := len(messages)
-	worker.Log.Info(fmt.Sprintf("worker: Received %d messages", numMessages))
-
-	var wg sync.WaitGroup
-	wg.Add(numMessages)
-	for i := range messages {
-		go func(m *sqs.Message) {
-			// launch goroutine
-			defer wg.Done()
-			if err := worker.handleMessage(m, h); err != nil {
-				worker.Log.Error(err.Error())
-			}
-		}(messages[i])
-	}
-
-	wg.Wait()
 }
 
 func (worker *Worker) handleMessage(m *sqs.Message, h Handler) error {
