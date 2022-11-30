@@ -3,6 +3,7 @@
 variables:
   BRANCH_SANDBOX: master
   BRANCH_STAGING: master
+  FINAL_TEST: 0
   # This disables deploy, not needed in this repo
   CONTAINERS_STAGING: ""
   CONTAINERS_SANDBOX: ""
