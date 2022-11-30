@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,20 +21,20 @@ type mockedSqsClient struct {
 	mock.Mock
 }
 
-func (c *mockedSqsClient) GetQueueUrl(urlInput *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
+func (c *mockedSqsClient) GetQueueUrlWithContext(ctx aws.Context, urlInput *sqs.GetQueueUrlInput, options ...request.Option) (*sqs.GetQueueUrlOutput, error) {
 	url := fmt.Sprintf("https://sqs.%v.amazonaws.com/123456789/%v", *c.Config.Region, *urlInput.QueueName)
 
 	return &sqs.GetQueueUrlOutput{QueueUrl: &url}, nil
 }
 
-func (c *mockedSqsClient) ReceiveMessage(input *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
-	c.Called(input)
+func (c *mockedSqsClient) ReceiveMessageWithContext(ctx aws.Context, input *sqs.ReceiveMessageInput, opts ...request.Option) (*sqs.ReceiveMessageOutput, error) {
+	c.Called(ctx, input)
 
 	return &c.Response, nil
 }
 
-func (c *mockedSqsClient) DeleteMessage(input *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error) {
-	c.Called(input)
+func (c *mockedSqsClient) DeleteMessageWithContext(ctx aws.Context, input *sqs.DeleteMessageInput, opts ...request.Option) (*sqs.DeleteMessageOutput, error) {
+	c.Called(ctx, input)
 	c.Response = sqs.ReceiveMessageOutput{}
 
 	return &sqs.DeleteMessageOutput{}, nil
@@ -65,7 +66,7 @@ func TestStart(t *testing.T) {
 	}
 
 	clientParams := buildClientParams()
-	sqsMessage := &sqs.Message{Body: aws.String(`{ "foo": "bar", "qux": "baz" }`)}
+	sqsMessage := &sqs.Message{Body: aws.String(`{ "foo": "bar", "qux": "baz" }`), MessageId: aws.String("1234")}
 	sqsResponse := sqs.ReceiveMessageOutput{Messages: []*sqs.Message{sqsMessage}}
 	client := &mockedSqsClient{Response: sqsResponse, Config: awsConfig}
 	deleteInput := &sqs.DeleteMessageInput{QueueUrl: clientParams.QueueUrl}
@@ -106,8 +107,8 @@ func TestStart(t *testing.T) {
 	})
 
 	t.Run("the worker successfully processes a message", func(t *testing.T) {
-		client.On("ReceiveMessage", clientParams).Return()
-		client.On("DeleteMessage", deleteInput).Return()
+		client.On("ReceiveMessageWithContext", mock.Anything, clientParams).Return()
+		client.On("DeleteMessageWithContext", mock.Anything, deleteInput).Return()
 		handler.On("HandleMessage", "bar", "baz").Return().Once()
 
 		worker.Start(ctx, handlerFunc)

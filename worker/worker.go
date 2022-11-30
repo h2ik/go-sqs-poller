@@ -7,7 +7,9 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"go.elastic.co/apm/v2"
 )
 
 // HandlerFunc is used to define the Handler that is run on for each message
@@ -41,15 +43,15 @@ func NewInvalidEventError(event, msg string) InvalidEventError {
 // QueueAPI interface is the minimum interface required from a queue implementation to invoke New worker.
 // Invoking worker.New() takes in a queue name which is why GetQueueUrl is needed.
 type QueueAPI interface {
-	GetQueueUrl(*sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error)
+	GetQueueUrlWithContext(aws.Context, *sqs.GetQueueUrlInput, ...request.Option) (*sqs.GetQueueUrlOutput, error)
 	QueueDeleteReceiverAPI
 }
 
 // QueueDeleteReceiverAPI interface is the minimum interface required to run a worker.
 // When a worker is in its Receive loop, it requires this interface.
 type QueueDeleteReceiverAPI interface {
-	DeleteMessage(*sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
-	ReceiveMessage(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
+	ReceiveMessageWithContext(ctx aws.Context, input *sqs.ReceiveMessageInput, opts ...request.Option) (*sqs.ReceiveMessageOutput, error)
+	DeleteMessageWithContext(ctx aws.Context, input *sqs.DeleteMessageInput, opts ...request.Option) (*sqs.DeleteMessageOutput, error)
 }
 
 // Worker struct
@@ -70,7 +72,7 @@ type Config struct {
 // New sets up a new Worker
 func New(client QueueAPI, config *Config) *Worker {
 	config.populateDefaultValues()
-	config.QueueURL = getQueueURL(client, config.QueueName)
+	config.QueueURL = getQueueURL(context.TODO(), client, config.QueueName)
 
 	return &Worker{
 		Config:    config,
@@ -98,20 +100,27 @@ func (worker *Worker) Start(ctx context.Context, h Handler) {
 				WaitTimeSeconds: aws.Int64(worker.Config.WaitTimeSecond),
 			}
 
-			resp, err := worker.SqsClient.ReceiveMessage(params)
+			// I create separated context here so every message has its own.
+			// TODO: is that ok?
+			tx := apm.DefaultTracer().StartTransaction("Message", "worker")
+			txCtx := apm.ContextWithTransaction(context.Background(), tx)
+
+			resp, err := worker.SqsClient.ReceiveMessageWithContext(ctx, params)
 			if err != nil {
 				log.Println(err)
+				tx.End()
 				continue
 			}
 			if len(resp.Messages) > 0 {
-				worker.run(h, resp.Messages)
+				worker.run(txCtx, h, resp.Messages)
 			}
+			tx.End()
 		}
 	}
 }
 
 // poll launches goroutine per received message and wait for all message to be processed
-func (worker *Worker) run(h Handler, messages []*sqs.Message) {
+func (worker *Worker) run(ctx context.Context, h Handler, messages []*sqs.Message) {
 	numMessages := len(messages)
 	worker.Log.Info(fmt.Sprintf("worker: Received %d messages", numMessages))
 
@@ -119,9 +128,11 @@ func (worker *Worker) run(h Handler, messages []*sqs.Message) {
 	wg.Add(numMessages)
 	for i := range messages {
 		go func(m *sqs.Message) {
+			span, ctx := apm.StartSpan(ctx, fmt.Sprintf("Message ID %s processing", *m.MessageId), "message_handler")
+			defer span.End()
 			// launch goroutine
 			defer wg.Done()
-			if err := worker.handleMessage(m, h); err != nil {
+			if err := worker.handleMessage(ctx, m, h); err != nil {
 				worker.Log.Error(err.Error())
 			}
 		}(messages[i])
@@ -130,7 +141,7 @@ func (worker *Worker) run(h Handler, messages []*sqs.Message) {
 	wg.Wait()
 }
 
-func (worker *Worker) handleMessage(m *sqs.Message, h Handler) error {
+func (worker *Worker) handleMessage(ctx context.Context, m *sqs.Message, h Handler) error {
 	var err error
 	err = h.HandleMessage(m)
 	if _, ok := err.(InvalidEventError); ok {
@@ -143,7 +154,7 @@ func (worker *Worker) handleMessage(m *sqs.Message, h Handler) error {
 		QueueUrl:      aws.String(worker.Config.QueueURL), // Required
 		ReceiptHandle: m.ReceiptHandle,                    // Required
 	}
-	_, err = worker.SqsClient.DeleteMessage(params)
+	_, err = worker.SqsClient.DeleteMessageWithContext(ctx, params)
 	if err != nil {
 		return err
 	}

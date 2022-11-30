@@ -1,19 +1,22 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"go.elastic.co/apm/module/apmawssdkgo/v2"
 )
 
 // CreateSqsClient creates a client for SQS API
 func CreateSqsClient(awsConfigs ...*aws.Config) sqsiface.SQSAPI {
-	awsSession := session.Must(session.NewSession())
+	session := session.Must(session.NewSession())
+	session = apmawssdkgo.WrapSession(session)
 
-	return sqs.New(awsSession, awsConfigs...)
+	return sqs.New(session, awsConfigs...)
 }
 
 func (config *Config) populateDefaultValues() {
@@ -26,11 +29,11 @@ func (config *Config) populateDefaultValues() {
 	}
 }
 
-func getQueueURL(client QueueAPI, queueName string) (queueURL string) {
+func getQueueURL(ctx context.Context, client QueueAPI, queueName string) (queueURL string) {
 	params := &sqs.GetQueueUrlInput{
 		QueueName: aws.String(queueName), // Required
 	}
-	response, err := client.GetQueueUrl(params)
+	response, err := client.GetQueueUrlWithContext(ctx, params)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
