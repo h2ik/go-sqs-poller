@@ -1,0 +1,15 @@
+# Counter: 10
+
+variables:
+  BRANCH_SANDBOX: master
+  BRANCH_STAGING: master
+  # This disables deploy, not needed in this repo
+  CONTAINERS_STAGING: ""
+  CONTAINERS_SANDBOX: ""
+  CONTAINERS_PRODUCTION: ""
+
+
+
+include:
+  - project: 'osp/ci-templates'
+    file: '/go.gitlab-ci.yml'
