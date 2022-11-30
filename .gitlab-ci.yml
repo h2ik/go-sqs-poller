@@ -1,6 +1,8 @@
 # Counter: 10
 
 variables:
+  GO_VERSION: 1.19-alpine
+  GO_VERSION_FOR_TESTS: 1.19-alpine
   BRANCH_SANDBOX: master
   BRANCH_STAGING: master
   FINAL_TEST: 0
